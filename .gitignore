@@ -1,0 +1,11 @@
+# Ignore a specific file
+dummy_disk.img
+
+#Ignore entire directiry
+/build/
+.qtcreator
+
+#ignore file with specific extension
+*.log
+*.tmp
+*.img
