@@ -1,6 +1,38 @@
 #include "../../../include/kernel/ds/bufferCache.h"
+#include <cassert>
+#include <stdlib.h>
+#include <atomic>
+
+BufferCache::BufferCache()
+{
+    for(std::size_t i=0; i<NHASH ;i++)
+    {
+        hashQueueHeaders[i].nextHashNode=&hashQueueHeaders[i];
+        hashQueueHeaders[i].prevHashNode=&hashQueueHeaders[i];
+        hashQueueHeaders[i].nextFreeNode=nullptr;
+        hashQueueHeaders[i].prevFreeNode=nullptr;
+
+    }
+    freeListHeader.nextFreeNode=&freeListHeader;
+    freeListHeader.prevFreeNode=&freeListHeader;
+
+    //Putting all buffer in frelist itialyy
+    for(std::size_t i=0; i< NBUFFER ; i++)
+    {
+        Buffer* bptr= new Buffer(); //dynamically created at kernel stack.
+        if(posix_memalign(reinterpret_cast<void**>(&bptr->data), BLOCK_SIZE,BLOCK_SIZE)!=0)
+        {
+            std::abort();
+        }
+        bptr->invalid=true;
+        putAtTailOfFreeList(bptr);
+    }
+
+}
+
 struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
 {
+    std::unique_lock<std::mutex> lock(hashQueueMtx);
 	while(true)
 	{
         struct Buffer* lockedBuffer=nullptr;
@@ -10,6 +42,7 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
             if(lockedBuffer->locked)
             {
                 //sleep for event that buffer becoes free
+                lockedBuffer->bufferCV.wait(lock,[lockedBuffer] {return !lockedBuffer->locked;});
                 continue;
             }
             else
@@ -34,7 +67,7 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
             removeBufferFromFreeList(lockedBuffer);
             if(lockedBuffer->delayedWrite)
             {
-                //asynchronous write
+                doAsyncWrite(lockedBuffer);
                 continue;
             }
             removeBufferFromHashQueue(lockedBuffer); //remove from old hash que
@@ -55,13 +88,13 @@ struct Buffer* BufferCache::getFreeBuffer()
 
 }
 
-void BufferCache::addToHashQueue(struct Buffer* lockedBuffer, int hashID)
+void BufferCache::addToHashQueue(struct Buffer* lockedBuffer, std::size_t hashID)
 {
     //lock operation
-    lockedBuffer->nextHashNode=hashqueuHeaders[hashID].nextHashNode;
-    lockedBuffer->prevHashNode=&hashqueuHeaders[hashID];
-    (hashqueuHeaders[hashID].nextHashNode)->prevHashNode=lockedBuffer;
-    hashqueuHeaders[hashID].nextHashNode= lockedBuffer;
+    lockedBuffer->nextHashNode=hashQueueHeaders[hashID].nextHashNode;
+    lockedBuffer->prevHashNode=&hashQueueHeaders[hashID];
+    (hashQueueHeaders[hashID].nextHashNode)->prevHashNode=lockedBuffer;
+    hashQueueHeaders[hashID].nextHashNode= lockedBuffer;
 
 }
 void BufferCache::removeBufferFromFreeList(struct Buffer* buf)
@@ -86,7 +119,7 @@ void BufferCache::removeBufferFromHashQueue(struct Buffer* buf)
 
 struct Buffer* BufferCache::blockInHashQueue(DEVICE dev, BLOCK blk)
 {
-    struct Buffer& hashqueueHeader= BufferCache::hashqueuHeaders[hashFunction(dev,blk)];
+    struct Buffer& hashqueueHeader= BufferCache::hashQueueHeaders[hashFunction(dev,blk)];
     return findBuffer(hashqueueHeader,dev, blk);
 }
 struct Buffer* BufferCache::findBuffer(struct Buffer& bufferHeader, DEVICE dev, BLOCK blk) const
@@ -103,3 +136,27 @@ struct Buffer* BufferCache::findBuffer(struct Buffer& bufferHeader, DEVICE dev, 
     return nullptr;
 }
 
+void BufferCache::putAtTailOfFreeList(Buffer* bptr )
+{
+    bptr->nextFreeNode= &freeListHeader;
+    bptr->prevFreeNode= freeListHeader.prevFreeNode;
+    (bptr->nextFreeNode)->prevFreeNode=bptr;
+    (bptr->prevFreeNode)->nextFreeNode=bptr;
+}
+
+bool BufferCache::freeListEmpty() const
+{
+    return freeListHeader.nextFreeNode == &freeListHeader;
+}
+BufferCache::~BufferCache()
+{
+    Buffer* bptr= freeListHeader.nextFreeNode;
+    while(bptr != &freeListHeader)
+    {
+        Buffer* next=bptr->nextFreeNode;
+        std::free(bptr->data);
+        delete bptr;
+        bptr=next;
+
+    }
+}
