@@ -1,10 +1,10 @@
 #include "../../../include/kernel/ds/bufferCache.h"
 #include <cassert>
 #include <stdlib.h>
-#include <atomic>
 
 BufferCache::BufferCache()
 {
+    // Initialize a spin lock for optimization.
     for(std::size_t i=0; i<NHASH ;i++)
     {
         hashQueueHeaders[i].nextHashNode=&hashQueueHeaders[i];
@@ -19,7 +19,7 @@ BufferCache::BufferCache()
     //Putting all buffer in frelist itialyy
     for(std::size_t i=0; i< NBUFFER ; i++)
     {
-        Buffer* bptr= new Buffer(); //dynamically created at kernel stack.
+        Buffer* bptr= new Buffer(); //dynamically created at kernel heap.
         if(posix_memalign(reinterpret_cast<void**>(&bptr->data), BLOCK_SIZE,BLOCK_SIZE)!=0)
         {
             std::abort();
@@ -32,7 +32,6 @@ BufferCache::BufferCache()
 
 struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
 {
-    std::unique_lock<std::mutex> lock(hashQueueMtx);
 	while(true)
 	{
         struct Buffer* lockedBuffer=nullptr;
@@ -42,7 +41,7 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
             if(lockedBuffer->locked)
             {
                 //sleep for event that buffer becoes free
-                lockedBuffer->bufferCV.wait(lock,[lockedBuffer] {return !lockedBuffer->locked;});
+                //sleep();
                 continue;
             }
             else
@@ -81,9 +80,14 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
     }
 
 }
-
+void BufferCache::doAsyncWrite(Buffer* buf)
+{
+    //TO-DO implement logic
+    return;
+}
 struct Buffer* BufferCache::getFreeBuffer()
 {
+    assert(!freeListEmpty());
     return freeListHeader.nextFreeNode;
 
 }
@@ -99,7 +103,7 @@ void BufferCache::addToHashQueue(struct Buffer* lockedBuffer, std::size_t hashID
 }
 void BufferCache::removeBufferFromFreeList(struct Buffer* buf)
 {
-    //std::lock_guard<std::mutex> lock;
+    //lock;
     (buf->prevFreeNode)->nextFreeNode=buf->nextFreeNode;
     (buf->nextFreeNode)->prevFreeNode= buf->prevFreeNode;
     buf->nextFreeNode=nullptr;
@@ -109,7 +113,7 @@ void BufferCache::removeBufferFromFreeList(struct Buffer* buf)
 
 void BufferCache::removeBufferFromHashQueue(struct Buffer* buf)
 {
-    //std::lock_guard<std::mutex> lock;
+    //lock;
     (buf->prevHashNode)->nextHashNode=buf->nextHashNode;
     (buf->nextHashNode)->prevHashNode= buf->prevHashNode;
     buf->nextHashNode=nullptr;

@@ -4,6 +4,7 @@
  *                     3. cache LRU algo.
  *                     4. statically allocated buffer pool.
  *                     5. buffer cache -Fast look up through cache- spinn lock- buffer cache process should never go to sleep
+ *                     //Later
  *                     6. Buffer -read write from disk slow operations- sleep lock
  *
  * */
@@ -16,12 +17,12 @@
 #include <condition_variable>
 class BufferCache
 {
-    //static struct Buffer Buffers[NBUFFER];
+    struct Buffer preDefinedBuffers[NBUFFER];
     //TO-DO static allocation of buffers. kernel heap is limited
     struct Buffer hashQueueHeaders[NHASH]; // each header pointing one hash queue;
     struct Buffer freeListHeader;
-    std::condition_variable freeListCV;
-    std::mutex hashQueueMtx;
+    std::condition_variable cacheCV; //protects linked list/hash queue
+    std::mutex cacheMtx; //locking maintained during hash queu searching (ideally spin lock)
 
     inline size_t hashFunction(DEVICE dev, BLOCK blk)
 	{
