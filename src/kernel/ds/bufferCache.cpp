@@ -19,17 +19,22 @@ BufferCache::BufferCache()
     //Putting all buffer in frelist itialyy
     for(std::size_t i=0; i< NBUFFER ; i++)
     {
-        Buffer* bptr= new Buffer(); //dynamically created at kernel heap.
+        Buffer* bptr= &preDefinedBuffers[i];
         if(posix_memalign(reinterpret_cast<void**>(&bptr->data), BLOCK_SIZE,BLOCK_SIZE)!=0)
         {
             std::abort();
         }
         bptr->invalid=true;
+        //raise processor execution level - TO-DO
         putAtTailOfFreeList(bptr);
     }
 
 }
 
+void raiseProcessorExecutionLevel()
+{
+    //TO-DO
+}
 struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
 {
 	while(true)
@@ -41,18 +46,19 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
             if(lockedBuffer->locked)
             {
                 //sleep for event that buffer becoes free
+                lockedBuffer->indemand=true;
                 //sleep();
                 continue;
             }
             else
             {
                 lockedBuffer->locked=true;
+                //raise processor execution level - TO-DO
+
                 removeBufferFromFreeList(lockedBuffer);
                 return lockedBuffer;
 
              }
-
-
         }
         else
         {
@@ -60,15 +66,17 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
             {
                 //sleep wait for any buffer
                 continue;
-
             }
             lockedBuffer= getFreeBuffer();
+            //raise processor execution level - TO-DO
             removeBufferFromFreeList(lockedBuffer);
             if(lockedBuffer->delayedWrite)
             {
+                lockedBuffer->locked=true;
                 doAsyncWrite(lockedBuffer);
                 continue;
             }
+            //raise processor execution level - TO-DO
             removeBufferFromHashQueue(lockedBuffer); //remove from old hash que
             lockedBuffer->locked=true;
             lockedBuffer->invalid=true;
@@ -83,6 +91,8 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
 void BufferCache::doAsyncWrite(Buffer* buf)
 {
     //TO-DO implement logic
+    bwrite(buf);
+
     return;
 }
 struct Buffer* BufferCache::getFreeBuffer()
@@ -104,20 +114,26 @@ void BufferCache::addToHashQueue(struct Buffer* lockedBuffer, std::size_t hashID
 void BufferCache::removeBufferFromFreeList(struct Buffer* buf)
 {
     //lock;
+    //Hardware interrupts must be turned off before modification - TO-Do
     (buf->prevFreeNode)->nextFreeNode=buf->nextFreeNode;
     (buf->nextFreeNode)->prevFreeNode= buf->prevFreeNode;
     buf->nextFreeNode=nullptr;
     buf->prevFreeNode= nullptr;
+
+    //Hardware interrupts must be turned on after modification
     //lock.unlock();
 }
 
 void BufferCache::removeBufferFromHashQueue(struct Buffer* buf)
 {
     //lock;
+    //Hardware interrupts must be turned off before modification TO-DO
     (buf->prevHashNode)->nextHashNode=buf->nextHashNode;
     (buf->nextHashNode)->prevHashNode= buf->prevHashNode;
     buf->nextHashNode=nullptr;
     buf->prevHashNode= nullptr;
+
+    //Hardware interrupts must be turned on after modification
     //lock.unlock();
 }
 
@@ -148,6 +164,15 @@ void BufferCache::putAtTailOfFreeList(Buffer* bptr )
     (bptr->prevFreeNode)->nextFreeNode=bptr;
 }
 
+
+void BufferCache::putAtHeadOfFreeList(Buffer* bptr )
+{
+    bptr->nextFreeNode= freeListHeader.nextFreeNode;
+    bptr->prevFreeNode= &freeListHeader;
+    (bptr->nextFreeNode)->prevFreeNode=bptr;
+    (bptr->prevFreeNode)->nextFreeNode=bptr;
+}
+
 bool BufferCache::freeListEmpty() const
 {
     return freeListHeader.nextFreeNode == &freeListHeader;
@@ -163,4 +188,105 @@ BufferCache::~BufferCache()
         bptr=next;
 
     }
+}
+
+void BufferCache::brelse(Buffer* buffer)
+{
+    //TO-DO
+    // Wakeup all process, event waiting for any buffer to become free.
+    // wake up all process, event waiting for that buffer to become free.
+
+    //raise processor execution level
+    // Block interrrupts  disableInterupts();
+    //acquire(bufferCacheLock);
+
+    if(buffer->invalid || buffer->delayedWrite)
+    {
+        putAtHeadOfFreeList(buffer);
+    }
+    else
+    {
+        putAtTailOfFreeList(buffer);
+    }
+
+    //lower the processor execution level
+    buffer->locked= false;
+
+
+}
+
+Buffer* BufferCache::bread(DEVICE dev, BLOCK blk)
+{
+    Buffer* buff= getblk(dev, blk);
+    if(buff->invalid)
+    {
+        //initiateDiskRead(buff); //Low level mechanism to initiate communicaiton with device driver- chapert 120
+        //sleep();
+
+        assert(!buff->invalid);
+
+    }
+    return buff;
+}
+
+Buffer* BufferCache::breada(DEVICE dev, BLOCK currentBlock, BLOCK nextBlock)
+{
+    Buffer* currentBuffer=nullptr;
+    if((currentBuffer=blockInHashQueue(dev, currentBlock)) == nullptr) // Buffer not in cache
+    {
+        currentBuffer= getblk(dev, currentBlock);
+        if(currentBuffer->invalid)
+        {
+            //initiateDiskRead(currentBuffer); - TO-DO
+            //synchronous
+
+        }
+
+    }
+    if(blockInHashQueue(dev, nextBlock) == nullptr) //next block in hashque
+    {
+        Buffer* nextBuffer= getblk(dev, nextBlock);
+        if(nextBuffer->invalid)
+        {
+            //buffer->async_read= true;
+            //How will interrupt decide if this buffer is asyn read?
+            nextBuffer->write=false;
+            nextBuffer->asyncRead=true;
+            //initiateDiskRead(buffer);
+        }
+        else
+        {
+            brelse(nextBuffer);
+        }
+    }
+    if(blockInHashQueue(dev,nextBlock) != nullptr)
+    {
+        currentBuffer= bread(dev, currentBlock);
+        return currentBuffer;
+    }
+    if(currentBuffer->invalid)
+    {
+        //sleep(event first buffer conatins valid data);
+    }
+    return currentBuffer;
+
+
+}
+
+void BufferCache::bwrite(Buffer* buf)
+{
+    //initiateDiskWrite(buf);
+    if(buf->write && !buf->delayedWrite) //synchronous write
+    {
+        //sleep(i/o completion);
+        brelse(buf);
+    }
+    else if (buf->delayedWrite)//asyncwrite)
+    {
+        //mark buffer to put at head of free list?
+
+    }
+
+
+
 }

@@ -39,12 +39,20 @@ class BufferCache
     void addToHashQueue(struct Buffer* lockedBuffer, std::size_t hashID);
 
     void putAtTailOfFreeList(struct Buffer* freeBuffer);
+    void putAtHeadOfFreeList(struct Buffer* freeBuffer);
+    struct Buffer* getblk(DEVICE dev, BLOCK blk);
 
     void doAsyncWrite(Buffer* writeBuffer);
+    void changeProcessorExecutionLevel();
+
     public:
         BufferCache();
         ~BufferCache();
-        struct Buffer* getblk(DEVICE dev, BLOCK blk);
+        void brelse(Buffer* bfr);
+        Buffer* bread(DEVICE dev, BLOCK blk);
+        Buffer* breada(DEVICE dev, BLOCK currentBlock, BLOCK nextBlock);
+        void bwrite(Buffer* buf);
+
 };
 
 #endif

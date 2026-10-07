@@ -24,6 +24,7 @@ struct Buffer
     bool invalid        = true;
     bool indemand       = false;
     bool delayedWrite   = false;
+    bool asyncRead      = false;
     bool write          = false;
     char  *data         = nullptr;
 
