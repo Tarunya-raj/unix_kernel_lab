@@ -1,7 +1,8 @@
-#include "../../../include/kernel/ds/bufferCache.h"
+#include "bufferCache.h"
 #include <cassert>
 #include <stdlib.h>
-
+#include <cstddef>
+#include <cstring>
 BufferCache::BufferCache()
 {
     // Initialize a spin lock for optimization.
@@ -115,6 +116,7 @@ void BufferCache::removeBufferFromFreeList(struct Buffer* buf)
 {
     //lock;
     //Hardware interrupts must be turned off before modification - TO-Do
+    if(buf->nextFreeNode == &(*buf) && buf->prevFreeNode ==&(*buf)) return;
     (buf->prevFreeNode)->nextFreeNode=buf->nextFreeNode;
     (buf->nextFreeNode)->prevFreeNode= buf->prevFreeNode;
     buf->nextFreeNode=nullptr;
@@ -178,15 +180,10 @@ bool BufferCache::freeListEmpty() const
     return freeListHeader.nextFreeNode == &freeListHeader;
 }
 BufferCache::~BufferCache()
-{
-    Buffer* bptr= freeListHeader.nextFreeNode;
-    while(bptr != &freeListHeader)
+{    
+    for(auto & buf : preDefinedBuffers)
     {
-        Buffer* next=bptr->nextFreeNode;
-        std::free(bptr->data);
-        delete bptr;
-        bptr=next;
-
+        std::free(buf.data);
     }
 }
 
@@ -220,9 +217,10 @@ Buffer* BufferCache::bread(DEVICE dev, BLOCK blk)
     Buffer* buff= getblk(dev, blk);
     if(buff->invalid)
     {
+        //TO-DO
         //initiateDiskRead(buff); //Low level mechanism to initiate communicaiton with device driver- chapert 120
         //sleep();
-
+        std::memset(buff->data, 0, BLOCK_SIZE ); buff->invalid=false;  //DUMMY disk read.
         assert(!buff->invalid);
 
     }
@@ -232,7 +230,8 @@ Buffer* BufferCache::bread(DEVICE dev, BLOCK blk)
 Buffer* BufferCache::breada(DEVICE dev, BLOCK currentBlock, BLOCK nextBlock)
 {
     Buffer* currentBuffer=nullptr;
-    if((currentBuffer=blockInHashQueue(dev, currentBlock)) == nullptr) // Buffer not in cache
+    bool firstCached= blockInHashQueue(dev, currentBlock) != nullptr;
+    if(!firstCached) // Buffer not in cache
     {
         currentBuffer= getblk(dev, currentBlock);
         if(currentBuffer->invalid)
@@ -259,7 +258,7 @@ Buffer* BufferCache::breada(DEVICE dev, BLOCK currentBlock, BLOCK nextBlock)
             brelse(nextBuffer);
         }
     }
-    if(blockInHashQueue(dev,nextBlock) != nullptr)
+    if(firstCached)
     {
         currentBuffer= bread(dev, currentBlock);
         return currentBuffer;

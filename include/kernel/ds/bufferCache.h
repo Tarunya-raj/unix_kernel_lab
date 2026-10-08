@@ -26,7 +26,10 @@ class BufferCache
 
     inline size_t hashFunction(DEVICE dev, BLOCK blk)
 	{
+        //Use a power of two so the modulo is cheap, and mix the bits (e.g. (dev * 31 + blk) % NHASH), because plain dev+blk clusters badly on sequential access.
 		return (dev+blk)%NHASH;
+
+        //(dev * 31 + blk) % NHASH)
 	}
 
     struct Buffer* findBuffer(struct Buffer& , DEVICE , BLOCK ) const;
@@ -47,6 +50,11 @@ class BufferCache
 
     public:
         BufferCache();
+        BufferCache(const BufferCache& obj)= delete;
+        BufferCache& operator=(const BufferCache& rhs)=delete;
+        BufferCache(BufferCache&& obj) =delete;
+        BufferCache& operator=(BufferCache&& rhs)= delete;
+
         ~BufferCache();
         void brelse(Buffer* bfr);
         Buffer* bread(DEVICE dev, BLOCK blk);
