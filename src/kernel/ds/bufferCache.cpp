@@ -1,10 +1,12 @@
-#include "bufferCache.h"
+#include "kernel/ds/bufferCache.h"
 #include <cassert>
 #include <stdlib.h>
 #include <cstddef>
 #include <cstring>
+#include <iostream>
 BufferCache::BufferCache()
 {
+    std::cout << "\n[INITIALZING BUFFER CACHE] \n";
     // Initialize a spin lock for optimization.
     for(std::size_t i=0; i<NHASH ;i++)
     {
@@ -18,6 +20,8 @@ BufferCache::BufferCache()
     freeListHeader.prevFreeNode=&freeListHeader;
 
     //Putting all buffer in frelist itialyy
+
+    std::cout << "\n[STARTUP ALL BUFFER ARE ADD TO FREE LIST] \n";
     for(std::size_t i=0; i< NBUFFER ; i++)
     {
         Buffer* bptr= &preDefinedBuffers[i];
@@ -41,9 +45,12 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
 	while(true)
 	{
         struct Buffer* lockedBuffer=nullptr;
-        //using result of assignment without using paranthesis
         if((lockedBuffer=blockInHashQueue(dev,blk))) //buffer in hash queu
         {
+
+            std::cout << "[CACHE HIT] buffer=" << lockedBuffer
+                      << " dev=" << lockedBuffer->deviceNo
+                      << " block=" << lockedBuffer->blockNo << '\n';
             if(lockedBuffer->locked)
             {
                 //sleep for event that buffer becoes free
@@ -63,6 +70,11 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
         }
         else
         {
+
+            std::cout << "[CACHE MISS] buffer="
+                      << " dev=" << dev
+                      << " block=" << blk << '\n';
+
             if(freeListHeader.nextFreeNode==&freeListHeader) //freeList empty
             {
                 //sleep wait for any buffer
@@ -84,6 +96,11 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
             lockedBuffer->deviceNo=dev;
             lockedBuffer->blockNo=blk;
             addToHashQueue(lockedBuffer, hashFunction(dev,blk));
+
+            std::cout << "[BUFFER ALLOCATED] buffer="
+                      << lockedBuffer
+                      << " dev=" << dev
+                      << " block=" << blk << '\n';
             return lockedBuffer;
         }
     }
@@ -106,6 +123,10 @@ struct Buffer* BufferCache::getFreeBuffer()
 void BufferCache::addToHashQueue(struct Buffer* lockedBuffer, std::size_t hashID)
 {
     //lock operation
+
+    std::cout << "\n[ALLOCATE BUFFER] buffer="
+              << " dev=" << lockedBuffer->deviceNo
+              << " block=" << lockedBuffer->blockNo << '\n';
     lockedBuffer->nextHashNode=hashQueueHeaders[hashID].nextHashNode;
     lockedBuffer->prevHashNode=&hashQueueHeaders[hashID];
     (hashQueueHeaders[hashID].nextHashNode)->prevHashNode=lockedBuffer;
@@ -130,6 +151,7 @@ void BufferCache::removeBufferFromHashQueue(struct Buffer* buf)
 {
     //lock;
     //Hardware interrupts must be turned off before modification TO-DO
+    if((buf->nextHashNode == &(*buf) && buf->prevHashNode ==&(*buf) ) || ( buf->nextHashNode==nullptr && buf->prevHashNode==nullptr)) return;
     (buf->prevHashNode)->nextHashNode=buf->nextHashNode;
     (buf->nextHashNode)->prevHashNode= buf->prevHashNode;
     buf->nextHashNode=nullptr;
@@ -197,6 +219,11 @@ void BufferCache::brelse(Buffer* buffer)
     // Block interrrupts  disableInterupts();
     //acquire(bufferCacheLock);
 
+    std::cout << "[BUFFER RELEASE] buffer="
+              << buffer
+              << " dev=" << buffer->deviceNo
+              << " block=" << buffer->blockNo << '\n';
+
     if(buffer->invalid || buffer->delayedWrite)
     {
         putAtHeadOfFreeList(buffer);
@@ -217,6 +244,8 @@ Buffer* BufferCache::bread(DEVICE dev, BLOCK blk)
     Buffer* buff= getblk(dev, blk);
     if(buff->invalid)
     {
+        std::cout << "[DISK READ] dev=" << dev
+                  << " block=" << blk << '\n';
         //TO-DO
         //initiateDiskRead(buff); //Low level mechanism to initiate communicaiton with device driver- chapert 120
         //sleep();

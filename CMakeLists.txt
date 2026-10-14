@@ -10,10 +10,11 @@ if(NOT CMAKE_BUILD_TYPE)
  set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_executable(${PROJECT_NAME} main.cpp)
-target_sources(${PROJECT_NAME} PRIVATE 	src/kernel/ds/bufferCache.cpp)
+add_executable(${PROJECT_NAME} main.cpp
+    src/fileSubsystem/disk/fileFormat.cpp
+    include/fileSubsystem/disk/fileFormat.h)
+target_sources(${PROJECT_NAME} PRIVATE 	src/kernel/ds/bufferCache.cpp src/fileSubsystem/disk/fileFormat.cpp)
 
 #g++ -I/path/to/MyProject/include/kernel/ds ...   -I include this directory to header search path.
-target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include/kernel/ds)
-
+target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include/)
 
