@@ -1,10 +1,26 @@
 #include <iostream>
 #include "kernel/ds/bufferCache.h"
+#include "fileSubsystem/disk/fileRepresentation.h"
 using namespace std;
 
 int main()
 {
-    cout << "UNIX DESIGN- BUFFER CACHE WORKING\n";
+
+    std::cout << "Block size: "
+              << BLOCK_SIZE << " bytes\n";
+
+    std::cout << "Block address size: "
+              << sizeof(blocknumber) << " bytes\n";
+
+    std::cout << "Addresses per indirect block: "
+              << NINDIRECT << '\n';
+
+    std::cout << "Disk inode size: "
+              << sizeof(dinode) << " bytes\n";
+
+    std::cout << "Inodes per 4 KiB block: "
+              << BLOCK_SIZE / sizeof(dinode) << '\n';
+   /* cout << "UNIX DESIGN- BUFFER CACHE WORKING\n";
 
     BufferCache cache;
 
@@ -35,6 +51,6 @@ int main()
     std::cout << "\n--- SCENARIO 5: READ BLOCK 10 AGAIN ---\n";
     Buffer* b5 = cache.bread(1, 10);
     std::cout << "buffer = " << b5 << '\n';
-    cache.brelse(b5);
+    cache.brelse(b5);*/
     return 0;
 }

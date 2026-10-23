@@ -11,9 +11,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_executable(${PROJECT_NAME} main.cpp
-    src/fileSubsystem/disk/fileFormat.cpp
-    include/fileSubsystem/disk/fileFormat.h)
-target_sources(${PROJECT_NAME} PRIVATE 	src/kernel/ds/bufferCache.cpp src/fileSubsystem/disk/fileFormat.cpp)
+    include/fileSubsystem/disk/fileRepresentation.h
+    src/fileSubsystem/incore/incoreinode.h src/fileSubsystem/incore/incoreinode.cpp)
+target_sources(${PROJECT_NAME} PRIVATE 	src/kernel/ds/bufferCache.cpp src/fileSubsystem/disk/fileRepresentation.cpp)
 
 #g++ -I/path/to/MyProject/include/kernel/ds ...   -I include this directory to header search path.
 target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include/)

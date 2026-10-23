@@ -5,7 +5,6 @@
 
 #include "common/common.h"
 
-constexpr std::size_t BLOCK_SIZE = 4096;
 constexpr std::size_t NBUFFER = 500;
 constexpr std::size_t NHASH= 64;
 constexpr std::size_t BUFFER_SIZE= BLOCK_SIZE;
