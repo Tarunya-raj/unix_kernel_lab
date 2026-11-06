@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "common/common.h"
+#include "kernel/ds/list.h"
 
 constexpr std::size_t NBUFFER = 500;
 constexpr std::size_t NHASH= 64;
@@ -12,10 +13,12 @@ constexpr std::size_t BUFFER_SIZE= BLOCK_SIZE;
 
 struct Buffer
 {
-    struct Buffer* nextHashNode=nullptr;
+    /*struct Buffer* nextHashNode=nullptr;
     struct Buffer* prevHashNode=nullptr;
     struct Buffer* nextFreeNode=nullptr;
-    struct Buffer* prevFreeNode=nullptr;
+    struct Buffer* prevFreeNode=nullptr;*/
+    ListNode hashNode;
+    ListNode freeNode;
     DEVICE deviceNo     = 0;
     BLOCK blockNo       = 0;
     bool locked         = false;

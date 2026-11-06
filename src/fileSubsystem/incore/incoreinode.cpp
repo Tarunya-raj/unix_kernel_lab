@@ -4,6 +4,6 @@ incoreInodeTable::incoreInodeTable() {}
 
 void incoreInodeTable::init()
 {
-
+    //for(int i=)
 
 }

@@ -10,14 +10,11 @@ BufferCache::BufferCache()
     // Initialize a spin lock for optimization.
     for(std::size_t i=0; i<NHASH ;i++)
     {
-        hashQueueHeaders[i].nextHashNode=&hashQueueHeaders[i];
-        hashQueueHeaders[i].prevHashNode=&hashQueueHeaders[i];
-        hashQueueHeaders[i].nextFreeNode=nullptr;
-        hashQueueHeaders[i].prevFreeNode=nullptr;
+        list_init(&(hashQueueHeaders[i].hashNode));
+     
 
-    }
-    freeListHeader.nextFreeNode=&freeListHeader;
-    freeListHeader.prevFreeNode=&freeListHeader;
+    }    
+        list_init(&(freeListHeader.freeNode));
 
     //Putting all buffer in frelist itialyy
 
@@ -25,13 +22,15 @@ BufferCache::BufferCache()
     for(std::size_t i=0; i< NBUFFER ; i++)
     {
         Buffer* bptr= &preDefinedBuffers[i];
+        list_init(&bptr->freeNode);
+        list_init(&bptr->hashNode);
         if(posix_memalign(reinterpret_cast<void**>(&bptr->data), BLOCK_SIZE,BLOCK_SIZE)!=0)
         {
             std::abort();
         }
         bptr->invalid=true;
         //raise processor execution level - TO-DO
-        putAtTailOfFreeList(bptr);
+        list_add_tail(&(bptr->freeNode),&freeListHeader.freeNode);
     }
 
 }
@@ -75,7 +74,7 @@ struct Buffer* BufferCache::getblk(DEVICE dev, BLOCK blk)
                       << " dev=" << dev
                       << " block=" << blk << '\n';
 
-            if(freeListHeader.nextFreeNode==&freeListHeader) //freeList empty
+            if(list_empty(&(freeListHeader.freeNode)))
             {
                 //sleep wait for any buffer
                 continue;
@@ -116,7 +115,8 @@ void BufferCache::doAsyncWrite(Buffer* buf)
 struct Buffer* BufferCache::getFreeBuffer()
 {
     assert(!freeListEmpty());
-    return freeListHeader.nextFreeNode;
+    ListNode* node = freeListHeader.freeNode.next;
+    return container_of(node,Buffer, freeNode);
 
 }
 
@@ -127,21 +127,15 @@ void BufferCache::addToHashQueue(struct Buffer* lockedBuffer, std::size_t hashID
     std::cout << "\n[ALLOCATE BUFFER] buffer="
               << " dev=" << lockedBuffer->deviceNo
               << " block=" << lockedBuffer->blockNo << '\n';
-    lockedBuffer->nextHashNode=hashQueueHeaders[hashID].nextHashNode;
-    lockedBuffer->prevHashNode=&hashQueueHeaders[hashID];
-    (hashQueueHeaders[hashID].nextHashNode)->prevHashNode=lockedBuffer;
-    hashQueueHeaders[hashID].nextHashNode= lockedBuffer;
-
+    list_add_head(&(lockedBuffer->hashNode),&(hashQueueHeaders[hashID].hashNode));
+   
 }
 void BufferCache::removeBufferFromFreeList(struct Buffer* buf)
 {
     //lock;
     //Hardware interrupts must be turned off before modification - TO-Do
-    if(buf->nextFreeNode == &(*buf) && buf->prevFreeNode ==&(*buf)) return;
-    (buf->prevFreeNode)->nextFreeNode=buf->nextFreeNode;
-    (buf->nextFreeNode)->prevFreeNode= buf->prevFreeNode;
-    buf->nextFreeNode=nullptr;
-    buf->prevFreeNode= nullptr;
+    
+    list_del(&(buf->freeNode));
 
     //Hardware interrupts must be turned on after modification
     //lock.unlock();
@@ -151,11 +145,7 @@ void BufferCache::removeBufferFromHashQueue(struct Buffer* buf)
 {
     //lock;
     //Hardware interrupts must be turned off before modification TO-DO
-    if((buf->nextHashNode == &(*buf) && buf->prevHashNode ==&(*buf) ) || ( buf->nextHashNode==nullptr && buf->prevHashNode==nullptr)) return;
-    (buf->prevHashNode)->nextHashNode=buf->nextHashNode;
-    (buf->nextHashNode)->prevHashNode= buf->prevHashNode;
-    buf->nextHashNode=nullptr;
-    buf->prevHashNode= nullptr;
+    list_del(&(buf->hashNode));
 
     //Hardware interrupts must be turned on after modification
     //lock.unlock();
@@ -166,40 +156,24 @@ struct Buffer* BufferCache::blockInHashQueue(DEVICE dev, BLOCK blk)
     struct Buffer& hashqueueHeader= BufferCache::hashQueueHeaders[hashFunction(dev,blk)];
     return findBuffer(hashqueueHeader,dev, blk);
 }
-struct Buffer* BufferCache::findBuffer(struct Buffer& bufferHeader, DEVICE dev, BLOCK blk) const
+Buffer* BufferCache::findBuffer(Buffer& bufferHeader,DEVICE dev,BLOCK blk) const
 {
-    struct Buffer* buffer= bufferHeader.nextHashNode;
-    while(buffer != &bufferHeader)
+    ListNode* node = bufferHeader.hashNode.next;
 
+    while (node != &bufferHeader.hashNode)
     {
-        if(buffer->deviceNo == dev && buffer->blockNo == blk)
+        Buffer* buffer = container_of(node, Buffer, hashNode);
+
+        if (buffer->deviceNo == dev &&
+            buffer->blockNo == blk)
+        {
             return buffer;
-        else
-            buffer=buffer->nextHashNode;
+        }
+
+        node = node->next;
     }
+
     return nullptr;
-}
-
-void BufferCache::putAtTailOfFreeList(Buffer* bptr )
-{
-    bptr->nextFreeNode= &freeListHeader;
-    bptr->prevFreeNode= freeListHeader.prevFreeNode;
-    (bptr->nextFreeNode)->prevFreeNode=bptr;
-    (bptr->prevFreeNode)->nextFreeNode=bptr;
-}
-
-
-void BufferCache::putAtHeadOfFreeList(Buffer* bptr )
-{
-    bptr->nextFreeNode= freeListHeader.nextFreeNode;
-    bptr->prevFreeNode= &freeListHeader;
-    (bptr->nextFreeNode)->prevFreeNode=bptr;
-    (bptr->prevFreeNode)->nextFreeNode=bptr;
-}
-
-bool BufferCache::freeListEmpty() const
-{
-    return freeListHeader.nextFreeNode == &freeListHeader;
 }
 BufferCache::~BufferCache()
 {    
@@ -226,11 +200,11 @@ void BufferCache::brelse(Buffer* buffer)
 
     if(buffer->invalid || buffer->delayedWrite)
     {
-        putAtHeadOfFreeList(buffer);
+        list_add_head(&(buffer->freeNode),&(freeListHeader.freeNode));
     }
     else
     {
-        putAtTailOfFreeList(buffer);
+        list_add_tail(&(buffer->freeNode),&(freeListHeader.freeNode));
     }
 
     //lower the processor execution level

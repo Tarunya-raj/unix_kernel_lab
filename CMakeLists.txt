@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 project(unix_kernel_lab LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #Default to Release so -O2/-O3 is used unless told otherwise
@@ -12,7 +12,9 @@ endif()
 
 add_executable(${PROJECT_NAME} main.cpp
     include/fileSubsystem/disk/fileRepresentation.h
-    src/fileSubsystem/incore/incoreinode.h src/fileSubsystem/incore/incoreinode.cpp)
+    src/fileSubsystem/incore/incoreinode.h src/fileSubsystem/incore/incoreinode.cpp
+    src/processSubsystem/process.cpp
+    include/processSubsystem/process.h)
 target_sources(${PROJECT_NAME} PRIVATE 	src/kernel/ds/bufferCache.cpp src/fileSubsystem/disk/fileRepresentation.cpp)
 
 #g++ -I/path/to/MyProject/include/kernel/ds ...   -I include this directory to header search path.

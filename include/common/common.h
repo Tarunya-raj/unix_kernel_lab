@@ -16,4 +16,9 @@ constexpr uint8_t NDIRECT=10;
 constexpr uint8_t NBLOCKADDR= 13; //13 member array
 constexpr std::size_t NINDIRECT=BLOCK_SIZE/sizeof(blockNumber);
 constexpr uint32_t ROOTINO=1;
+
+
+#define container_of(ptr, type, member) reinterpret_cast<type*>(reinterpret_cast<char*>(ptr) - offsetof(type, member))
+
+
 #endif
