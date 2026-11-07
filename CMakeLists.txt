@@ -1,22 +1,34 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.23)
 
 project(unix_kernel_lab LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-#Default to Release so -O2/-O3 is used unless told otherwise
-if(NOT CMAKE_BUILD_TYPE)
- set(CMAKE_BUILD_TYPE Release)
-endif()
+add_library(bufferCache)
+target_sources(bufferCache PRIVATE src/kernel/ds/bufferCache.cpp
+		include/kernel/ds/buffer.h
+		PUBLIC
+		FILE_SET bufferfiles
+		TYPE HEADERS
+		FILES
+		include/kernel/ds/bufferCache.h
+			
+		)
+target_include_directories(bufferCache PRIVATE ${PROJECT_SOURCE_DIR}/include)
+add_library(fileSystem)
+target_sources(fileSystem PRIVATE src/fileSubsystem/disk/fileRepresentation.cpp
+			src/fileSubsystem/incore/incoreinode.cpp
+			PUBLIC
+			FILE_SET filesystemFiles
+			TYPE HEADERS
+			FILES
+			include/fileSubsystem/disk/fileRepresentation.h	)
+		target_include_directories(fileSystem PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
-add_executable(${PROJECT_NAME} main.cpp
-    include/fileSubsystem/disk/fileRepresentation.h
-    src/fileSubsystem/incore/incoreinode.h src/fileSubsystem/incore/incoreinode.cpp
-    src/processSubsystem/process.cpp
-    include/processSubsystem/process.h)
-target_sources(${PROJECT_NAME} PRIVATE 	src/kernel/ds/bufferCache.cpp src/fileSubsystem/disk/fileRepresentation.cpp)
 
-#g++ -I/path/to/MyProject/include/kernel/ds ...   -I include this directory to header search path.
-target_include_directories(${PROJECT_NAME} PUBLIC ${PROJECT_SOURCE_DIR}/include/)
-
+		
+add_executable(kernel)
+target_sources(kernel PRIVATE app/main.cpp)
+target_include_directories(kernel PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(kernel fileSystem bufferCache)

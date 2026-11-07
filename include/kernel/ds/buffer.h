@@ -13,10 +13,6 @@ constexpr std::size_t BUFFER_SIZE= BLOCK_SIZE;
 
 struct Buffer
 {
-    /*struct Buffer* nextHashNode=nullptr;
-    struct Buffer* prevHashNode=nullptr;
-    struct Buffer* nextFreeNode=nullptr;
-    struct Buffer* prevFreeNode=nullptr;*/
     ListNode hashNode;
     ListNode freeNode;
     DEVICE deviceNo     = 0;
