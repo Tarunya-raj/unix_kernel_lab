@@ -114,9 +114,10 @@ void BufferCache::doAsyncWrite(Buffer* buf)
 }
 struct Buffer* BufferCache::getFreeBuffer()
 {
-    assert(!freeListEmpty());
-    ListNode* node = freeListHeader.freeNode.next;
-    return container_of(node,Buffer, freeNode);
+
+    ListNode* headNode = &freeListHeader.freeNode;
+     assert(!list_empty(headNode));
+    return container_of(headNode->next,Buffer, freeNode);
 
 }
 

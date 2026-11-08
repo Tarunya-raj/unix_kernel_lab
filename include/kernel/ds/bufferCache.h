@@ -36,13 +36,10 @@ class BufferCache
     struct Buffer* blockInHashQueue(DEVICE dev, BLOCK blk);
     struct Buffer* getFreeBuffer();
 
-    bool freeListEmpty() const;
     void removeBufferFromFreeList(struct Buffer*);
     void removeBufferFromHashQueue(struct Buffer*);
     void addToHashQueue(struct Buffer* lockedBuffer, std::size_t hashID);
 
-    void putAtTailOfFreeList(struct Buffer* freeBuffer);
-    void putAtHeadOfFreeList(struct Buffer* freeBuffer);
     struct Buffer* getblk(DEVICE dev, BLOCK blk);
 
     void doAsyncWrite(Buffer* writeBuffer);
